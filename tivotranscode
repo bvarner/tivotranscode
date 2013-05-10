@@ -1,92 +1,160 @@
 #!/bin/bash
 
 usage() {
-	echo " Usage: `basename $0` -i <shows file> <tivoaddress> <mak>" 1>&2
-        echo "       If <shows file> is omitted, the script looks for a file named '.shows'. You can use '-' to read from stdin" 1>&2
-        echo "       If <tivoaddress> is omitted, the script looks for a file named '.tivo'" 1>&2
-        echo "       If <mak> is omitted, you may place the media access key in a file named '.mediakey'" 1>&2
-	exit 1
+cat << EOF
+Usage: `basename $0` [options]
+
+OPTIONS:
+    -h, --help      Show this message.
+    -f, --first-run Connects to the tivo and saves the show and tivo access info to the given files
+    -s, --show-list File containing a list of shows titles to transcode.  default to '.tvt-shows'
+    -t, --tivo      TiVo IP Address / host name.                          default to '.tvt-host'
+    -m, --media-key Media Access Key                                      default to '.tvt-mak'
+    -v, --verbose   Instructs the script to be verbose about what it's doing.
+EOF
 }
 
-if [[ ! -n "$1" || "$1" != '-i' ]]; then
-	usage
-fi
-if [[ ! -n "$2" && ! -f ".shows" ]]; then
-	usage
-fi
-if [[ ! -n "$3" && ! -f ".tivo" ]]; then
-	usage
-fi
-if [[ ! -n "$4" && ! -f ".mediakey" ]]; then
-	usage
-fi
-
-# Each line from stdin or from the file named by the parameter or in .shows is a full title for a show to include in processing. (a subscription, if you will)
-if [[ "$2" == '-' ]]; then
-	INFILE="/dev/stdin"
-else
-	INFILE="$2"
-	if [[ "$INFILE" == "" && -f ".shows" ]]; then
-		INFILE=".shows"
-	fi
-fi
-
-# tivo address
-TIVO="$3"
-if [[ "$TIVO" == "" && -f ".tivo" ]]; then
-	TIVO=`cat .tivo`
-fi
-
-# media access key
-MAK="$4"
-if [[ "$MAK" == "" && -f ".mediakey" ]]; then
-	MAK=`cat .mediakey`
-fi
+LONG_OPTIONS=0
+FIRSTRUN=0
+SHOWLIST=""
+TIVO=""
+MAK=""
+VERBOSE=0
 
 # Current date/time
 DATE=`date +%Y%m%d%H%M`
 GETSCRIPT="./get_$DATE.sh"
 
-# Time to make the donuts!
-# ------------------------
-# Try to get a lockfile. If we can't get it, assume the lock is taken, and don't do anything. 
-# This lets us schedule the job on a regular interval and have it not interfere with itself.
-LOCKNAME="encode_$TIVO.lock"
-lockfile -10 -r 3 $LOCKNAME
-if [[ "$?" == "0" ]]; then
-
-	# Clean up from the last run.
-	echo "#!/bin/bash" > $GETSCRIPT
-    
-	# Make sure we have a file named .processed_shows to keep a list of all the things we've already included.
-	touch .processed_shows
-	
-	echo "Downloading list of shows from the tivo..."
-	#echo "Downloading nowplaying list from https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes" 1>&2
-	NOWPLAYING="`curl -s --digest -k -u tivo:$MAK "https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes"`"
-	
-	echo "Reading show list from $INFILE" 1>&2
-	while read TITLE; do
-		PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
-		for PROGRAMID in $PROGRAMS; do
-			PROCESSED=`fgrep "$TITLE:$PROGRAMID" .processed_shows`
-			if [[ "$PROCESSED" == "" ]]; then
-				echo "Including $TITLE:$PROGRAMID" 1>&2
-				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
-			else
-				echo "Skipping $TITLE:$PROGRAMID it's already been processed." 1>&2
-			fi
-		done
-	done < $INFILE
-	chmod +x $GETSCRIPT
-	
-	# Execute the generated file!
-	$GETSCRIPT
-	
-	echo "Cleaning up locks & generated script."
-	rm -f $LOCKNAME
-	rm $GETSCRIPT
+# Determine getopt support...
+getopt -T
+if [[ $? -eq 4 ]]; then
+	set -- $(getopt -o "hfs:t:m:v" -l "help,first-run,show-list:,tivo:,media-key:,verbose" -- "$@")
 else 
-	echo "Could not obtain lock, prior execution must be running."
+	set -- $(getopt hfs:t:m:v "$@")
 fi
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-h | --help ) usage; exit 1;;
+		-f | --first-run ) FIRSTRUN=1; shift ;;
+		-s | --show-list ) SHOWLIST="$2"; shift 2;;
+		-t | --tivo ) TIVO="$2"; shift 2;;
+		-m | --media-key ) MAK="$2"; shift 2;;
+		-v | --verbose ) VERBOSE=1; shift;;
+		-- ) shift; break;;
+		-* ) echo "Unrecognized option $1" 1>&2; exit 1;;
+		* )  break;;
+	esac
+done
+
+if [[ "$SHOWLIST" == "" ]]; then
+	SHOWLIST=".tvt-shows"
+elif [[ "$SHOWLIST" == "-" ]]; then
+	SHOWLIST="/dev/stdin"
+fi
+
+if [[ "$TIVO" == "" ]]; then
+	TIVO=`cat .tvt-host`
+fi
+if [[ "$MAK" == "" ]]; then
+	MAK=`cat .tvt-mak`
+fi
+
+if [[ "$VERBOSE" == "1" ]]; then
+	echo "Showlist: $SHOWLIST"
+	echo "Tivo:     $TIVO"
+	echo "Mak:      $MAK"
+	echo "Verbose:  $VERBOSE"
+	echo "Firstrun: $FIRSTRUN"
+fi
+
+
+if [[ "$FIRSTRUN" == "1" ]]; then
+	# make sure the showlist isn't /dev/stdin
+	if [[ "$SHOWLIST" == "/dev/stdin" ]]; then
+		echo "You cannot save firstrun data to /dev/stdin. Please specify a show list file."
+		usage
+		exit 1
+	fi
+
+	# We need these options
+	if [[ -z $TIVO ]] || [[ -z $MAK ]]; then
+		usage
+		exit 1
+	fi
+fi	
+
+if [[ "$FIRSTRUN" == "1" ]]; then
+	echo "$TIVO" > .tvt-host
+	echo "$MAK" > .tvt-mak
+	touch "$SHOWLIST"
+fi
+
+if [[ ! -f $SHOWLIST ]]; then
+    echo "Could not read from specified show list file: $SHOWLIST" 1>&2
+	exit 1
+fi
+
+
+if [[ "$FIRSTRUN" == "1" ]]; then
+	# Contact the TiVo at the given address, parse it's now playing for a list of shows.
+	# We're going to write all the show names to the file. You can edit it when we're done.
+	
+	
+else
+	# Time to make the donuts!
+	# ------------------------
+	# Try to get a lockfile. If we can't get it, assume the lock is taken, and don't do anything. 
+	# This lets us schedule the job on a regular interval and have it not interfere with itself.
+	LOCKNAME="encode_$TIVO.lock"
+	lockfile -10 -r 3 $LOCKNAME
+	if [[ "$?" == "0" ]]; then
+	
+		# Clean up from the last run.
+		echo "#!/bin/bash" > $GETSCRIPT
+	    
+		# Make sure we have a file named .processed_shows to keep a list of all the things we've already included.
+		touch .processed_shows
+	
+		# Read the list of shows from the input stream.
+		SHOWLIST=()
+		while read TITLE; do
+			SHOWLIST+=('$TITLE')
+		done < $INFILE
+	
+		for TITLE in "${SHOWLIST[@]}"; do
+			echo "Look for TITLE..."	
+		done
+	
+		
+	#	echo "Downloading list of shows from the tivo..."
+	#	echo "Downloading nowplaying list from https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes" 1>&2
+	#	NOWPLAYING="`curl -s --digest -k -u tivo:$MAK "https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes"`"
+	#	
+	#	echo "Reading show list from $INFILE" 1>&2
+	#	while read TITLE; do
+	#		PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
+	#		for PROGRAMID in $PROGRAMS; do
+	#			PROCESSED=`fgrep "$TITLE:$PROGRAMID" .processed_shows`
+	#			if [[ "$PROCESSED" == "" ]]; then
+	#				echo "Including $TITLE:$PROGRAMID" 1>&2
+	#				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
+	#			else
+	#				echo "Skipping $TITLE:$PROGRAMID it's already been processed." 1>&2
+	#			fi
+	#		done
+	#	done < $INFILE
+	#	chmod +x $GETSCRIPT
+		
+		# Execute the generated file!
+		$GETSCRIPT
+		
+		echo "Cleaning up locks & generated script."
+		rm -f $LOCKNAME
+		rm $GETSCRIPT
+	else 
+		echo "Could not obtain lock, prior execution must be running."
+	fi
+fi
+
 
