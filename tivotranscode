@@ -67,12 +67,12 @@ if [[ "$?" == "0" ]]; then
 	
 	echo "Reading show list from $INFILE" 1>&2
 	while read TITLE; do
-		PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" programid.xsl - `
+		PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
 		for PROGRAMID in $PROGRAMS; do
 			PROCESSED=`fgrep "$TITLE:$PROGRAMID" .processed_shows`
 			if [[ "$PROCESSED" == "" ]]; then
 				echo "Including $TITLE:$PROGRAMID" 1>&2
-				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" encodeshow.xsl - >> $GETSCRIPT
+				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
 			else
 				echo "Skipping $TITLE:$PROGRAMID it's already been processed." 1>&2
 			fi
