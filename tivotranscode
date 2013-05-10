@@ -73,6 +73,8 @@ if [[ "$?" == "0" ]]; then
 			if [[ "$PROCESSED" == "" ]]; then
 				echo "Including $TITLE:$PROGRAMID" 1>&2
 				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" encodeshow.xsl - >> $GETSCRIPT
+			else
+				echo "Skipping $TITLE:$PROGRAMID it's already been processed." 1>&2
 			fi
 		done
 	done < $INFILE
