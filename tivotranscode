@@ -7,9 +7,9 @@ Usage: `basename $0` [options]
 OPTIONS:
     -h, --help      Show this message.
     -f, --first-run Connects to the tivo and saves the show and tivo access info to the given files
-    -s, --show-list File containing a list of shows titles to transcode.  default to '.tvt-shows'
-    -t, --tivo      TiVo IP Address / host name.                          default to '.tvt-host'
-    -m, --media-key Media Access Key                                      default to '.tvt-mak'
+    -s, --show-list File containing a list of shows titles to transcode.  default to '~/.tvt-shows'
+    -t, --tivo      TiVo IP Address / host name.                          default to '~/.tvt-host'
+    -m, --media-key Media Access Key                                      default to '~/.tvt-mak'
     -v, --verbose   Instructs the script to be verbose about what it's doing.
 EOF
 }
@@ -29,7 +29,7 @@ GETSCRIPT="./get_$DATE.sh"
 getopt -T
 if [[ $? -eq 4 ]]; then
 	set -- $(getopt -o "hfs:t:m:v" -l "help,first-run,show-list:,tivo:,media-key:,verbose" -- "$@")
-else 
+else
 	set -- $(getopt hfs:t:m:v "$@")
 fi
 
@@ -48,24 +48,32 @@ while [ $# -gt 0 ]; do
 done
 
 if [[ "$SHOWLIST" == "" ]]; then
-	SHOWLIST=".tvt-shows"
+	SHOWLIST=$(readlink -f ~/.tvt-shows)
 elif [[ "$SHOWLIST" == "-" ]]; then
 	SHOWLIST="/dev/stdin"
 fi
 
 if [[ "$TIVO" == "" ]]; then
-	TIVO=`cat .tvt-host`
-fi
-if [[ "$MAK" == "" ]]; then
-	MAK=`cat .tvt-mak`
+	TIVO=`cat ~/.tvt-host`
+else
+	TIVO=`echo $TIVO | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
 fi
 
+if [[ "$MAK" == "" ]]; then
+	MAK=`cat ~/.tvt-mak`
+else
+	MAK=`echo $MAK | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
+fi
+
+PROCESSEDLIST=`readlink -f ~/.tvt-processed-shows`
+
 if [[ "$VERBOSE" == "1" ]]; then
-	echo "Showlist: $SHOWLIST"
-	echo "Tivo:     $TIVO"
-	echo "Mak:      $MAK"
-	echo "Verbose:  $VERBOSE"
-	echo "Firstrun: $FIRSTRUN"
+	echo "Showlist:  $SHOWLIST"
+	echo "Processed: $PROCESSEDLIST"
+	echo "Tivo:      $TIVO"
+	echo "Mak:       $MAK"
+	echo "Verbose:   $VERBOSE"
+	echo "Firstrun:  $FIRSTRUN"
 fi
 
 
@@ -82,25 +90,31 @@ if [[ "$FIRSTRUN" == "1" ]]; then
 		usage
 		exit 1
 	fi
-fi	
+fi
 
 if [[ "$FIRSTRUN" == "1" ]]; then
-	echo "$TIVO" > .tvt-host
-	echo "$MAK" > .tvt-mak
-	touch "$SHOWLIST"
+	echo "$TIVO" > ~/.tvt-host
+	echo "$MAK" > ~/.tvt-mak
+else
+	if [[ ! -f $SHOWLIST ]]; then
+		echo "Could not read from specified show list file: $SHOWLIST" 1>&2
+		exit 1
+	fi
 fi
 
-if [[ ! -f $SHOWLIST ]]; then
-    echo "Could not read from specified show list file: $SHOWLIST" 1>&2
-	exit 1
-fi
-
+echo "Connecting as tivo@$TIVO to download Now Playing list...."
+NOWPLAYING="`curl -s --digest -k -u tivo:$MAK "https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying"`"
+echo "Got it"
 
 if [[ "$FIRSTRUN" == "1" ]]; then
 	# Contact the TiVo at the given address, parse it's now playing for a list of shows.
 	# We're going to write all the show names to the file. You can edit it when we're done.
-	
-	
+
+	# Get the list of folders from the NOWPLAYING output, parsing out the URLs to get the episode lists.
+	echo $NOWPLAYING | xsltproc lib/listfolders.xsl - | sed 's/|.*//g' > $SHOWLIST
+
+	# Get the list of individual shows from the NOWPLAYING output.
+	echo $NOWPLAYING | xsltproc lib/listshows.xsl - >> $SHOWLIST
 else
 	# Time to make the donuts!
 	# ------------------------
@@ -109,49 +123,66 @@ else
 	LOCKNAME="encode_$TIVO.lock"
 	lockfile -10 -r 3 $LOCKNAME
 	if [[ "$?" == "0" ]]; then
-	
+
 		# Clean up from the last run.
 		echo "#!/bin/bash" > $GETSCRIPT
-	    
-		# Make sure we have a file named .processed_shows to keep a list of all the things we've already included.
-		touch .processed_shows
-	
+
+		# Make sure we have a file to keep a list of all the things we've already included.
+		touch $PROCESSEDLIST
+
 		# Read the list of shows from the input stream.
-		SHOWLIST=()
+		SUBSCRIBED=()
 		while read TITLE; do
-			SHOWLIST+=('$TITLE')
-		done < $INFILE
-	
-		for TITLE in "${SHOWLIST[@]}"; do
-			echo "Look for TITLE..."	
+			SUBSCRIBED+=("${TITLE}")
+		done < $SHOWLIST
+
+
+
+		for TITLE in "${SUBSCRIBED[@]}"; do
+			echo "Looking for individual episodes of $TITLE"
+
+			PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
+			for PROGRAMID in $PROGRAMS; do
+				PROCESSED=`fgrep "$TITLE:$PROGRAMID" $PROCESSEDLIST`
+				if [[ "$PROCESSED" == "" ]]; then
+					echo "Including $TITLE:$PROGRAMID" 1>&2
+					echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
+				else
+					echo "Skipping $TITLE:$PROGRAMID. This episode has already been processed." 1>&2
+				fi
+			done
+
+			if [[ "$PROGRAMS" == " " ]]; then
+				TITLEPLAYINGURL=`echo $NOWPLAYING | xsltproc lib/listfolders.xsl - | grep "$TITLE" | sed 's/.*|//g'`
+				echo "Getting the Now Playing list for episodes of $TITLE from $TITLEPLAYINGURL"
+
+				TITLEPLAYING="`curl -s --digest -k -u tivo:$MAK "$TITLEPLAYINGURL"`"
+
+
+				PROGRAMS=`echo $TITLEPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
+				for PROGRAMID in $PROGRAMS; do
+					PROCESSED=`fgrep "$TITLE:$PROGRAMID" $PROCESSEDLIST`
+					if [[ "$PROCESSED" == "" ]]; then
+						echo "Including $TITLE:$PROGRAMID" 1>&2
+						echo $TITLEPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
+					else
+						echo "Skipping $TITLE:$PROGRAMID. This episode has already been processed." 1>&2
+					fi
+				done
+			fi
 		done
-	
-		
-	#	echo "Downloading list of shows from the tivo..."
-	#	echo "Downloading nowplaying list from https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes" 1>&2
-	#	NOWPLAYING="`curl -s --digest -k -u tivo:$MAK "https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying&Recurse=Yes"`"
-	#	
-	#	echo "Reading show list from $INFILE" 1>&2
-	#	while read TITLE; do
-	#		PROGRAMS=`echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" lib/programid.xsl - `
-	#		for PROGRAMID in $PROGRAMS; do
-	#			PROCESSED=`fgrep "$TITLE:$PROGRAMID" .processed_shows`
-	#			if [[ "$PROCESSED" == "" ]]; then
-	#				echo "Including $TITLE:$PROGRAMID" 1>&2
-	#				echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
-	#			else
-	#				echo "Skipping $TITLE:$PROGRAMID it's already been processed." 1>&2
-	#			fi
-	#		done
-	#	done < $INFILE
-	#	chmod +x $GETSCRIPT
-		
+
+
+
+
+		chmod +x $GETSCRIPT
+
 		# Execute the generated file!
-		$GETSCRIPT
-		
+		#$GETSCRIPT
+
 		echo "Cleaning up locks & generated script."
 		rm -f $LOCKNAME
-		rm $GETSCRIPT
+#		rm $GETSCRIPT
 	else 
 		echo "Could not obtain lock, prior execution must be running."
 	fi
