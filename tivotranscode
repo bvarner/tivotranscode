@@ -178,7 +178,7 @@ else
 		chmod +x $GETSCRIPT
 
 		# Execute the generated file!
-		#$GETSCRIPT
+		$GETSCRIPT
 
 		echo "Cleaning up locks & generated script."
 		rm -f $LOCKNAME
