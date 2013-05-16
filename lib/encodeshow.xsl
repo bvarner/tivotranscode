@@ -10,6 +10,7 @@
   <xsl:param name="ShowTitle"/>
   <xsl:param name="ProgramId"/>
   <xsl:param name="MAK"/>
+  <xsl:param name="PROCESSEDLIST"/>
 
   <xsl:template match="t:TiVoContainer">
     <xsl:apply-templates/>
@@ -27,7 +28,7 @@ HandBrakeCLI -i <xsl:value-of select="$ProgramId"/>.tivo -o <xsl:value-of select
 # Constant quality single pass, big file, high quality.
 # HandBrakeCLI -i <xsl:value-of select="$ProgramId"/>.tivo -o <xsl:value-of select="$ProgramId"/>.m4v -O -e x264 -q 23.5 -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0  -f mp4 --decomb --custom-anamorphic --keep-display-aspect --crop 0:0:0:0 -m -x ref=2:bframes=2:subme=6:mixed-refs=0:weightb=0:8x8dct=0:trellis=0
 
-echo "<xsl:value-of select="$ShowTitle"/>:<xsl:value-of select="$ProgramId"/>" >> .processed_shows
+echo "<xsl:value-of select="$ShowTitle"/>:<xsl:value-of select="$ProgramId"/>" >> <xsl:value-of select="$PROCESSEDLIST"/>
 rm <xsl:value-of select="$ProgramId"/>.tivo
 
 mv <xsl:value-of select="$ProgramId"/>.m4v "<xsl:value-of select="t:Details/t:Title"/>-<xsl:value-of select="t:Details/t:EpisodeNumber"/>-<xsl:value-of select="t:Details/t:EpisodeTitle"/>.m4v"

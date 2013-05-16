@@ -146,7 +146,7 @@ else
 				PROCESSED=`fgrep "$TITLE:$PROGRAMID" $PROCESSEDLIST`
 				if [[ "$PROCESSED" == "" ]]; then
 					echo "Including $TITLE:$PROGRAMID" 1>&2
-					echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
+					echo $NOWPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" --stringparam PROCESSEDLIST "$PROCESSEDLIST" lib/encodeshow.xsl - >> $GETSCRIPT
 				else
 					echo "Skipping $TITLE:$PROGRAMID. This episode has already been processed." 1>&2
 				fi
@@ -164,7 +164,7 @@ else
 					PROCESSED=`fgrep "$TITLE:$PROGRAMID" $PROCESSEDLIST`
 					if [[ "$PROCESSED" == "" ]]; then
 						echo "Including $TITLE:$PROGRAMID" 1>&2
-						echo $TITLEPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" lib/encodeshow.xsl - >> $GETSCRIPT
+						echo $TITLEPLAYING | xsltproc --stringparam ShowTitle "$TITLE" --stringparam MAK "$MAK" --stringparam ProgramId "$PROGRAMID" --stringparam PROCESSEDLIST "$PROCESSEDLIST" lib/encodeshow.xsl - >> $GETSCRIPT
 					else
 						echo "Skipping $TITLE:$PROGRAMID. This episode has already been processed." 1>&2
 					fi
@@ -182,8 +182,8 @@ else
 
 		echo "Cleaning up locks & generated script."
 		rm -f $LOCKNAME
-#		rm $GETSCRIPT
-	else 
+		rm $GETSCRIPT
+	else
 		echo "Could not obtain lock, prior execution must be running."
 	fi
 fi
