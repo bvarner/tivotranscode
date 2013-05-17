@@ -1,12 +1,13 @@
-TiVo Transcode Is a set of cron-able shell scripts, designed to be a totally 
-automated, maintenance-free, method of transcoding TiVo recordings to a 
-destination.
+Currently, this project consists of a cronable shell script which makes use of open-source software to download, decode, and transcode TiVo recordings.
 
-I've created this as part of my end-to-end solution for recording live TV with a TiVo premiere, transcoding, and later viewing the recordings on Roku 2 set top boxes or other devices capable of h264 high-profile output.
+Specifically, I created this to automate the process of taking my TiVo recordings, and transcoding them to h264 (high-profile) for playback on a Roku 2 (should also work really well for raspberry pi's!)
+I've been using Debian (started with 6.0, now on 7.0) as my base system this runs on.
 
-To that end, the script targets h264 video, and stereo aac in an mp4 (.m4v extension) container.
+I've added the deb-multimedia repository, non-free contrib to all base debian repositories, and the backports repository.
 
-These scripts are designed to work on Debian Squeeze and Debian Wheezy... with the proper bits installed from the deb-multimedia.org repository...
+TODO: Instructions for installing (or a deb package!)
 
-I'll update this more accurately lately, this script has evolved quite a bit over the last year.    
+Install / Build the tivodecode software ... (put it in the right spot)
+
+
 
