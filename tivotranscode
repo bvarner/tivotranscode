@@ -149,14 +149,14 @@ function processShow {
 	for PROGRAMID in $PROGRAMIDS; do
 		if isNotProcessed $2 $PROGRAMID; then
 			echo "Processing $2:$PROGRAMID" 1>&2
-			
+
 			# Parse the URL from the now playing.
 			local MPEGURL
 			MPEGURL=`echo $1 | xsltproc --stringparam ProgramId "$PROGRAMID" lib/mpegurl.xsl -`
-			
+
 			local TARGETFILENAME
 			TARGETFILENAME=`echo $1 | xsltproc --stringparam ProgramId "$PROGRAMID" lib/targetfilename.xsl -`
-			
+
 			echo "  Craeting output diretory..."
 			mkdir -p "$2"
 
@@ -164,18 +164,18 @@ function processShow {
 			if [[ ! -f $PROGRAMID.tivo ]]; then
 				curl --cookie sid=abc -s --digest -k -u tivo:$MAK -c cookies.txt "$MPEGURL" | tivodecode -m $MAK -o $PROGRAMID.tivo -
 			fi
-			
+
 			echo "  Transcoding... to $TARGETFILENAME"
 			if [[ -f $PROGRAMID.tivo ]] && [[ ! -f $TARGETFILENAME ]]; then
 				HandBrakeCLI -i $PROGRAMID.tivo -o "$TARGETFILENAME" -f mp4 -O -e x264 --x264-profile high -b 1100 --two-pass -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0 --detelecine --decomb --strict-anamorphic
-				
+				rm $PROGRAMID.tivo
 				echo "$2:$PROGRAMID" >> $PROCESSEDLIST
 			fi
 		else
 			echo "Skipping $2:$PROGRAMID. This episode has already been processed. Please remove it from your TiVo." 1>&2
 		fi
 	done
-	
+
 	if [[ "$PROGRAMIDS" == " " ]]; then
 		# Found nothing
 		return 0
