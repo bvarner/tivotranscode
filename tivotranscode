@@ -131,6 +131,7 @@ function cleanupLock {
 # isProcessed(showname, programid)
 # returns 0 if the show has never been processed, false otherwise.
 function isNotProcessed {
+	echo "isNotProcessed $1 ... $2"
 	PROCESSED=`fgrep "$1:$2" $PROCESSEDLIST`
 	# return values in bash are so silly.
 	if [[ "$PROCESSED" == "" ]]; then
@@ -147,7 +148,7 @@ function processShow {
 	local PROGRAMIDS
 	PROGRAMIDS=`echo $1 | xsltproc --stringparam ShowTitle "$2" lib/programid.xsl - `
 	for PROGRAMID in $PROGRAMIDS; do
-		if isNotProcessed $2 $PROGRAMID; then
+		if isNotProcessed "$2" $PROGRAMID; then
 			echo "Processing $2:$PROGRAMID" 1>&2
 
 			# Parse the URL from the now playing.

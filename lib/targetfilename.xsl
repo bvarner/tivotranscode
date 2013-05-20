@@ -16,8 +16,11 @@
       		<xsl:when test="t:Details/t:EpisodeTitle/text() != ''">
 <xsl:value-of select="t:Details/t:EpisodeNumber"/>-<xsl:value-of select="t:Details/t:EpisodeTitle"/>
 			</xsl:when>
-			<xsl:otherwise>
+			<xsl:when test="t:Details/t:EpisodeNumber/text() != ''">
 <xsl:value-of select="t:Details/t:EpisodeNumber"/>
+			</xsl:when>
+			<xsl:otherwise>
+<xsl:value-of select="t:Details/t:ProgramId"/>
 			</xsl:otherwise>
 		</xsl:choose>
       </xsl:if>
