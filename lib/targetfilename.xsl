@@ -12,7 +12,14 @@
   <xsl:template match="t:TiVoContainer">
     <xsl:for-each select="t:Item">
       <xsl:if test="t:Details/t:ProgramId/text() = $ProgramId">
-<xsl:value-of select="t:Details/t:Title"/>/<xsl:value-of select="t:Details/t:EpisodeNumber"/>-<xsl:value-of select="t:Details/t:EpisodeTitle"/>.m4v
+      	<xsl:choose>
+      		<xsl:when test="t:Details/t:EpisodeTitle/text() != ''">
+<xsl:value-of select="t:Details/t:EpisodeNumber"/>-<xsl:value-of select="t:Details/t:EpisodeTitle"/>
+			</xsl:when>
+			<xsl:otherwise>
+<xsl:value-of select="t:Details/t:EpisodeNumber"/>
+			</xsl:otherwise>
+		</xsl:choose>
       </xsl:if>
     </xsl:for-each>
   </xsl:template>
