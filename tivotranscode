@@ -116,7 +116,7 @@ function loadSubscribed {
 # Construct the global LOCKNAME, and a function to get it, or kill the process.
 LOCKNAME="encode_$TIVO.lock"
 function lockOrDie {
-	lockfile -10 -r 3 $LOCKNAME
+	lockfile -5 $LOCKNAME
 	if [[ "$?" != "0" ]]; then
 		echo "Could not obtain lock to process shows for TiVo $TIVO. Perhaps another process is still running?"
 		exit 1
@@ -131,7 +131,6 @@ function cleanupLock {
 # isProcessed(showname, programid)
 # returns 0 if the show has never been processed, false otherwise.
 function isNotProcessed {
-	echo "isNotProcessed $1 ... $2"
 	PROCESSED=`fgrep "$1:$2" $PROCESSEDLIST`
 	# return values in bash are so silly.
 	if [[ "$PROCESSED" == "" ]]; then
@@ -176,7 +175,7 @@ function processShow {
 
 			echo "  Transcoding... to $TARGETFILENAME"
 			if [[ -f $PROGRAMID.tivo ]] && [[ ! -f $TARGETFILENAME ]]; then
-				HandBrakeCLI -i $PROGRAMID.tivo -o "$TARGETFILENAME" -f mp4 -O -e x264 --x264-profile high -b 1100 --two-pass -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0 --detelecine --decomb --strict-anamorphic
+				nice -n 20 HandBrakeCLI -i $PROGRAMID.tivo -o "$TARGETFILENAME" -f mp4 -O -e x264 --x264-profile high -b 1100 --two-pass -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0 --detelecine --decomb --strict-anamorphic
 				echo "$2:$PROGRAMID" >> $PROCESSEDLIST
 			else 
 				echo "    Skipping transcode. I'm either missing $PROGRAMID.tivo, or $TARGETFILENAME already exists."
