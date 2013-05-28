@@ -10,6 +10,7 @@ OPTIONS:
     -s, --show-list File containing a list of shows titles to transcode.  default to '~/.tvt-shows'
     -t, --tivo      TiVo IP Address / host name.                          default to '~/.tvt-host'
     -m, --media-key Media Access Key                                      default to '~/.tvt-mak'
+    -d, --dest      username@sftpserver                                   default to '~/.tvt-dest'
     -v, --verbose   Instructs the script to be verbose about what it's doing.
 EOF
 }
@@ -162,11 +163,9 @@ function processShow {
 				TARGETFILENAME="$PROGRAMID"
 			fi
 
-			# Prefix the directory.
-			TARGETFILENAME="$2/$TARGETFILENAME.m4v"
-
-			echo "  Craeting output diretory..."
+			# Make sure the output directory exists and then prefix it.
 			mkdir -p "$2"
+			TARGETFILENAME="$2/$TARGETFILENAME.m4v"
 
 			echo "  Downloading & Decoding from $MPEGURL"
 			if [[ ! -f $PROGRAMID.tivo ]]; then
@@ -199,7 +198,12 @@ function processShow {
 # on each show in the array, looking for episodes on the TiVo to process.
 function processSubscriptions {
 	loadSubscribed
-
+	
+	# Clean up an existing transfer script.
+	if [[ -f transfer_script ]]; then
+		rm transfer_script
+	fi
+	
 	# For every showname we're subscribed to, look for a ProgramID with that show title from the global Now Playing list.
 	for SHOW in "${SUBSCRIBED[@]}"; do
 		# processShow returns true if we didn't find anything.
@@ -215,7 +219,19 @@ function processSubscriptions {
 				echo "Did not find any pending episodes on the TiVo for $SHOW"
 			fi
 		fi
+		
+		# If we have a destination and a show directory, add it to the things to sftp.
+		if [[ -d $SHOW ]]; then
+			echo "cd /share/Public/Movies" >> transfer_script
+			echo "put -r \"$SHOW\"" >> transfer_script
+		fi
 	done
+	
+	# now let's run the script if there is one.
+	if [[ -f transfer_script ]]; then
+		sftp -b transfer_script admin@10.25.1.200
+		rm transfer_script
+	fi
 }
 
 # Get a global NowPlaying list (of individual shows and folders)
