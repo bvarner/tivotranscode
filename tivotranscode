@@ -20,14 +20,16 @@ FIRSTRUN=0
 SHOWLIST=""
 TIVO=""
 MAK=""
+DEST=""
 VERBOSE=0
+
 
 # Determine getopt support, and parse all the parameters we need.
 getopt -T
 if [[ $? -eq 4 ]]; then
-	set -- $(getopt -o "hfs:t:m:v" -l "help,first-run,show-list:,tivo:,media-key:,verbose" -- "$@")
+	set -- $(getopt -o "hfs:t:m:d:v" -l "help,first-run,show-list:,tivo:,media-key:,dest:,verbose" -- "$@")
 else
-	set -- $(getopt hfs:t:m:v "$@")
+	set -- $(getopt hfs:t:m:d:v "$@")
 fi
 
 while [ $# -gt 0 ]; do
@@ -38,6 +40,7 @@ while [ $# -gt 0 ]; do
 		-t | --tivo ) TIVO="$2"; shift 2;;
 		-m | --media-key ) MAK="$2"; shift 2;;
 		-v | --verbose ) VERBOSE=1; shift;;
+		-d | --dest ) DEST="$2"; echo $1; shift 2;;
 		-- ) shift; break;;
 		-* ) echo "Unrecognized option $1" 1>&2; exit 1;;
 		* )  break;;
@@ -62,15 +65,22 @@ else
 	MAK=`echo $MAK | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
 fi
 
+if [[ "$DEST" == "" ]]; then
+	DEST=`cat ~/.tvt-destination`
+else
+	DEST=`echo $DEST | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
+fi
+
 PROCESSEDLIST=`readlink -f ~/.tvt-processed-shows`
 
 if [[ "$VERBOSE" == "1" ]]; then
-	echo "Showlist:  $SHOWLIST"
-	echo "Processed: $PROCESSEDLIST"
-	echo "Tivo:      $TIVO"
-	echo "Mak:       $MAK"
-	echo "Verbose:   $VERBOSE"
-	echo "Firstrun:  $FIRSTRUN"
+	echo "Showlist:    $SHOWLIST"
+	echo "Processed:   $PROCESSEDLIST"
+	echo "Tivo:        $TIVO"
+	echo "Mak:         $MAK"
+	echo "Destination: $DEST"
+	echo "Verbose:     $VERBOSE"
+	echo "Firstrun:    $FIRSTRUN"
 fi
 
 
@@ -89,7 +99,17 @@ if [[ "$FIRSTRUN" == "1" ]]; then
 	fi
 fi
 
-# TODO: Make sure HandbrakeCli and tivodecode are on the command line.
+tivodecodeonpath=`whereis tivodecode | grep '/tivodecode' | wc -l`
+if [[ "$tivodecodeonpath" == "0" ]]; then
+	echo "Could not find tivodecode on PATH. Please check to make sure it's properly installed."
+	exit 1
+fi
+
+handbrakeclionpath=`whereis HandBrakeCLI | grep '/HandBrakeCLI' | wc -l`
+if [[ "$handbrakeclionpath" == "0" ]]; then
+	echo "Could not find HandBrakeCLI on PATH. Please check to make sure it's properly installed."
+	exit 1
+fi
 
 # getShowList(outputfilename)
 # Parses the global NOWPLAYING list and writes all the show titles (individual and folders)
@@ -229,7 +249,7 @@ function processSubscriptions {
 	
 	# now let's run the script if there is one.
 	if [[ -f transfer_script ]]; then
-		sftp -b transfer_script admin@10.25.1.200
+		sftp -b transfer_script "$DEST"
 		rm transfer_script
 	fi
 }
@@ -252,7 +272,7 @@ elif [[ "$NOWPLAYING" != "" ]]; then
 		exit 1
 	fi
 
-	# Make sure we have a file to keep a list of all the things we've already processed.
+	# Make sure we have a file to keep a list of all the things we've already proces`.
 	touch $PROCESSEDLIST
 
 	lockOrDie
