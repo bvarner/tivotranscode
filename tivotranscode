@@ -10,7 +10,7 @@ OPTIONS:
     -s, --show-list File containing a list of shows titles to transcode.  default to '~/.tvt-shows'
     -t, --tivo      TiVo IP Address / host name.                          default to '~/.tvt-host'
     -m, --media-key Media Access Key                                      default to '~/.tvt-mak'
-    -d, --dest      username@sftpserver                                   default to '~/.tvt-dest'
+    -d, --dest      username@sftpserver:/path/to/save/into                default to '~/.tvt-dest'
     -v, --verbose   Instructs the script to be verbose about what it's doing.
 EOF
 }
@@ -20,7 +20,9 @@ FIRSTRUN=0
 SHOWLIST=""
 TIVO=""
 MAK=""
+FULLDEST=""
 DEST=""
+DESTDIR=""
 VERBOSE=0
 
 
@@ -40,7 +42,7 @@ while [ $# -gt 0 ]; do
 		-t | --tivo ) TIVO="$2"; shift 2;;
 		-m | --media-key ) MAK="$2"; shift 2;;
 		-v | --verbose ) VERBOSE=1; shift;;
-		-d | --dest ) DEST="$2"; echo $1; shift 2;;
+		-d | --dest ) FULLDEST="$2"; echo $1; shift 2;;
 		-- ) shift; break;;
 		-* ) echo "Unrecognized option $1" 1>&2; exit 1;;
 		* )  break;;
@@ -65,11 +67,14 @@ else
 	MAK=`echo $MAK | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
 fi
 
-if [[ "$DEST" == "" ]]; then
-	DEST=`cat ~/.tvt-destination`
+if [[ "$FULLDEST" == "" ]]; then
+	FULLDEST=`cat ~/.tvt-destination`
 else
-	DEST=`echo $DEST | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
+	FULLDEST=`echo $FULLDEST | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g"`
 fi
+
+DEST=${FULLDEST%%:*}
+DESTDIR=${FULLDEST##*:}
 
 PROCESSEDLIST=`readlink -f ~/.tvt-processed-shows`
 
@@ -79,10 +84,10 @@ if [[ "$VERBOSE" == "1" ]]; then
 	echo "Tivo:        $TIVO"
 	echo "Mak:         $MAK"
 	echo "Destination: $DEST"
+	echo "  Directory: $DESTDIR"
 	echo "Verbose:     $VERBOSE"
 	echo "Firstrun:    $FIRSTRUN"
 fi
-
 
 if [[ "$FIRSTRUN" == "1" ]]; then
 	# make sure the showlist isn't /dev/stdin
@@ -218,12 +223,12 @@ function processShow {
 # on each show in the array, looking for episodes on the TiVo to process.
 function processSubscriptions {
 	loadSubscribed
-	
+
 	# Clean up an existing transfer script.
 	if [[ -f transfer_script ]]; then
 		rm transfer_script
 	fi
-	
+
 	# For every showname we're subscribed to, look for a ProgramID with that show title from the global Now Playing list.
 	for SHOW in "${SUBSCRIBED[@]}"; do
 		# processShow returns true if we didn't find anything.
@@ -239,14 +244,14 @@ function processSubscriptions {
 				echo "Did not find any pending episodes on the TiVo for $SHOW"
 			fi
 		fi
-		
+
 		# If we have a destination and a show directory, add it to the things to sftp.
 		if [[ -d $SHOW ]]; then
-			echo "cd /share/Public/Movies" >> transfer_script
+			echo "cd $DESTDIR" >> transfer_script
 			echo "put -r \"$SHOW\"" >> transfer_script
 		fi
 	done
-	
+
 	# now let's run the script if there is one.
 	if [[ -f transfer_script ]]; then
 		sftp -b transfer_script "$DEST"

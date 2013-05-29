@@ -10,6 +10,11 @@ The script was written on Debian 6, has been updated for Debian 7, and uses the 
 BSD. TODO: Document properly.
 
 ## Installation ##
+On Debian Wheezy (7.0, the current stable) the following magical incantations will work well.
+
+
+
+
 TODO: Document me.
 
 
