@@ -173,8 +173,7 @@ function isNotProcessed {
 
 # cleanShowName(showname, outputvar)
 function cleanShowName() {
-	echo "Cleanup $1"
-	eval $2=`sed -s "s/'//" <<< "$1" | sed -s "s/\!//"`
+        eval $2=`sed -s "s/'//" <<< "\\"$1\\"" | sed -s "s/\!//"`
 }
 
 # processShow(nowplayingxml, showname)
