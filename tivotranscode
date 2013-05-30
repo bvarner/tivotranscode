@@ -171,6 +171,11 @@ function isNotProcessed {
 	fi
 }
 
+# cleanShowName(showname, outputvar)
+function cleanShowName() {
+	eval $2=`echo "$1" | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g" | sed -s "s/\!//"`
+}	
+
 # processShow(nowplayingxml, showname)
 # Parses the provided nowplaying xml (can be global or show-specific) for programids matching the given show name
 # Downloads & decodes the mpeg streams from the tivo.
@@ -194,8 +199,10 @@ function processShow {
 			fi
 
 			# Make sure the output directory exists and then prefix it.
-			mkdir -p "$2"
-			TARGETFILENAME="$2/$TARGETFILENAME.m4v"
+			local TARGETDIRNAME
+			cleanShowName "$2" TARGETDIRNAME
+			mkdir -p "$TARGETDIRNAME"
+			TARGETFILENAME="$TARGETDIRNAME/$TARGETFILENAME.m4v"
 
 			echo "  Downloading & Decoding from $MPEGURL"
 			if [[ ! -f $PROGRAMID.tivo ]]; then
@@ -249,11 +256,14 @@ function processSubscriptions {
 				echo "Did not find any pending episodes on the TiVo for $SHOW"
 			fi
 		fi
-
+		
+		local TARGETDIRNAME
+		cleanShowName "$SHOW" TARGETDIRNAME
+		
 		# If we have a destination and a show directory, add it to the things to sftp.
-		if [[ -d $SHOW ]]; then
+		if [[ -d $TARGETDIRNAME ]]; then
 			echo "cd $DESTDIR" >> transfer_script
-			echo "put -r \"$SHOW\"" >> transfer_script
+			echo "put -r \"$TARGETDIRNAME\"" >> transfer_script
 		fi
 	done
 
@@ -265,8 +275,11 @@ function processSubscriptions {
 	
 	# now clean up the local directories
 	for SHOW in "${SUBSCRIBED[@]}"; do
-		if [[ -d $SHOW ]]; then
-			rm -fr "$SHOW"
+		local TARGETDIRNAME
+		cleanShowName "$SHOW" TARGETDIRNAME
+
+		if [[ -d $TARGETDIRNAME ]]; then
+			rm -fr "$TARGETDIRNAME"
 		fi
 	done
 }
