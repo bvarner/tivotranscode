@@ -173,8 +173,9 @@ function isNotProcessed {
 
 # cleanShowName(showname, outputvar)
 function cleanShowName() {
-	eval $2=`echo "$1" | sed -s "s/\\\!//"`
-}	
+	echo "Cleanup $1"
+	eval $2=`sed -s "s/'//" <<< "$1" | sed -s "s/\!//"`
+}
 
 # processShow(nowplayingxml, showname)
 # Parses the provided nowplaying xml (can be global or show-specific) for programids matching the given show name
