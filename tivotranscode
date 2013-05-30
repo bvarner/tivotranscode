@@ -173,7 +173,7 @@ function isNotProcessed {
 
 # cleanShowName(showname, outputvar)
 function cleanShowName() {
-	eval $2=`echo "$1" | sed -s "s/^\(\(\"\(.*\)\"\)\|\('\(.*\)'\)\)\$/\\3\\5/g" | sed -s "s/\!//"`
+	eval $2=`echo "$1" | sed -s "s/\\\!//"`
 }	
 
 # processShow(nowplayingxml, showname)
