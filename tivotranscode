@@ -25,7 +25,6 @@ DEST=""
 DESTDIR=""
 VERBOSE=0
 
-
 # Determine getopt support, and parse all the parameters we need.
 getopt -T
 if [[ $? -eq 4 ]]; then
@@ -104,6 +103,12 @@ if [[ "$FIRSTRUN" == "1" ]]; then
 	fi
 fi
 
+xsltprocpath=`whereis xsltproc | grep '/xsltproc' | wc -l`
+if [[ "$xsltprocpath" == "0" ]]; then
+	echo "Could not find xsltproc on PATH. Please check to make sure it's propertly installed."
+	exit 1
+fi
+
 tivodecodeonpath=`whereis tivodecode | grep '/tivodecode' | wc -l`
 if [[ "$tivodecodeonpath" == "0" ]]; then
 	echo "Could not find tivodecode on PATH. Please check to make sure it's properly installed."
@@ -143,7 +148,7 @@ function loadSubscribed {
 LOCKNAME="encode_$TIVO.lock"
 function lockOrDie {
 	lockfile -5 $LOCKNAME
-	if [[ "$?" != "0" ]]; then
+	if [[ $? -ne 0 ]]; then
 		echo "Could not obtain lock to process shows for TiVo $TIVO. Perhaps another process is still running?"
 		exit 1
 	fi
@@ -257,12 +262,18 @@ function processSubscriptions {
 		sftp -b transfer_script "$DEST"
 		rm transfer_script
 	fi
+	
+	# now clean up the local directories
+	for SHOW in "${SUBSCRIBED[@]}"; do
+		if [[ -d $SHOW ]]; then
+			rm -fr "$SHOW"
+		fi
+	done
 }
 
 # Get a global NowPlaying list (of individual shows and folders)
 # We recurse into folders manually when we need to, so that we can get the full
 # listing of -all- the shows (and episodes if necessary)
-echo "Connecting as tivo@$TIVO to download Now Playing list...."
 NOWPLAYING="`curl -s --digest -k -u tivo:$MAK "https://$TIVO/TiVoConnect?Command=QueryContainer&Container=%2FNowPlaying"`"
 
 # If this is a first run, we are going to save data.
