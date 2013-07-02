@@ -205,18 +205,18 @@ function processShow {
 			TARGETFILENAME="$TARGETDIRNAME/$TARGETFILENAME.m4v"
 
 			echo "  Downloading & Decoding from $MPEGURL"
-			if [[ ! -f $PROGRAMID.tivo ]]; then
-				curl --cookie sid=abc -s --digest -k -u tivo:$MAK -c cookies.txt "$MPEGURL" | tivodecode -m $MAK -o $PROGRAMID.tivo -
+			if [[ ! -f $PROGRAMID.mpg ]]; then
+				curl --cookie sid=abc -s --digest -k -u tivo:$MAK -c cookies.txt "$MPEGURL" | tivodecode -m $MAK -o $PROGRAMID.mpg -
 			fi
 
 			echo "  Transcoding... to $TARGETFILENAME"
-			if [[ -f $PROGRAMID.tivo ]] && [[ ! -f $TARGETFILENAME ]]; then
-				nice -n 20 HandBrakeCLI -i $PROGRAMID.tivo -o "$TARGETFILENAME" -f mp4 -O -e x264 --x264-profile high -b 1100 --two-pass -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0 --detelecine --decomb --strict-anamorphic
+			if [[ -f $PROGRAMID.mpg ]] && [[ ! -f $TARGETFILENAME ]]; then
+				nice -n 20 HandBrakeCLI -i $PROGRAMID.mpg -o "$TARGETFILENAME" -f mp4 -O -e x264 --x264-profile high -b 1100 --two-pass -r 29.97 -a 1 -E faac -B 160 -6 stereo -R Auto --gain 5.0 --detelecine --decomb --strict-anamorphic
 				echo "$2:$PROGRAMID" >> $PROCESSEDLIST
 			else
-				echo "    Skipping transcode. I'm either missing $PROGRAMID.tivo, or $TARGETFILENAME already exists."
+				echo "    Skipping transcode. I'm either missing $PROGRAMID.mpg, or $TARGETFILENAME already exists."
 			fi
-			rm $PROGRAMID.tivo
+			rm $PROGRAMID.mpg
 		else
 			echo "Skipping $2:$PROGRAMID. This episode has already been processed. Please remove it from your TiVo." 1>&2
 		fi
